@@ -1,0 +1,994 @@
+{
+  "common_flow": {
+    "START": {
+      "step": 1,
+      "message": "👋 Добро пожаловать в ПрактикБот!\n\nВыберите, кто вы:",
+      "input_type": "inline_keyboard",
+      "keyboard": [
+        [
+          {
+            "text": "🎓 Студент",
+            "callback_data": "ROLE_STUDENT"
+          }
+        ],
+        [
+          {
+            "text": "📚 Преподаватель",
+            "callback_data": "ROLE_TEACHER"
+          }
+        ],
+        [
+          {
+            "text": "🏭 Работодатель (наставник)",
+            "callback_data": "ROLE_EMPLOYER"
+          }
+        ],
+        [
+          {
+            "text": "🏢 Администрация",
+            "callback_data": "ROLE_ADMIN"
+          }
+        ]
+      ],
+      "backend_note": "Сначала ищем max_user_id в таблицах students/teachers/employers/admins. Если человек уже найден, сразу открываем меню его роли и не показываем START. Если нажата роль, отличная от той, под которой человек зарегистрирован, показываем ROLE_ALREADY_TAKEN."
+    },
+    "ROLE_ALREADY_TAKEN": {
+      "step": 2,
+      "message": "⛔ Вы уже зарегистрированы как: {current_role}.\n\nОдин аккаунт — одна роль. Если произошла ошибка, обратитесь в администрацию.",
+      "input_type": "none"
+    },
+    "AUTH_TOO_MANY_ATTEMPTS": {
+      "step": 3,
+      "message": "⛔ Слишком много неверных попыток ввода кода.\n\nПопробуйте снова через {minutes_left} мин.",
+      "input_type": "none"
+    },
+    "testing_auth_mode": {
+      "enabled": false,
+      "description": "УСТАРЕВШЕЕ ИНФОРМАЦИОННОЕ ПОЛЕ. Приложение не использует его для переключения безопасности. Фактический режим задаётся только параметрами SECURITY_ENABLED и TESTING_AUTH_MODE в .env. Без этих параметров защита включена, тестовый обход выключен.",
+      "role_rule": "Один max_user_id может иметь только одну роль."
+    }
+  },
+  "simplified_student_flow": {
+    "AUTH_STUDENT_GROUP": {
+      "step": 1,
+      "message": "🎓 Регистрация студента\n\nШаг 1 из 2. Выберите вашу группу:",
+      "input_type": "inline_keyboard",
+      "keyboard": [
+        [
+          {
+            "text": "ЭЛС-21",
+            "callback_data": "AUTH_GROUP:ЭЛС-21"
+          },
+          {
+            "text": "ЭЛС-22",
+            "callback_data": "AUTH_GROUP:ЭЛС-22"
+          }
+        ],
+        [
+          {
+            "text": "🔙 Назад",
+            "callback_data": "START"
+          }
+        ]
+      ],
+      "backend_note": "Кнопки групп лучше строить циклом из таблицы groups. Выбранную группу сохраняем во временное состояние пользователя (FSM).",
+      "on_success": "AUTH_STUDENT_FIO"
+    },
+    "AUTH_STUDENT_FIO": {
+      "step": 2,
+      "message": "Группа: {group_name}\n\nШаг 2 из 2. Введите ваше ФИО полностью (например: Иванов Иван Иванович).",
+      "input_type": "text",
+      "validation": "Ровно 3 слова, только русские буквы и дефис, длина до 100 символов. Лишние пробелы убираем, каждое слово пишем с заглавной буквы.",
+      "on_success": "AUTH_STUDENT_CONFIRM",
+      "on_error": {
+        "not_text": "❌ Пожалуйста, введите ФИО текстом.",
+        "bad_format": "❌ Введите Фамилию, Имя и Отчество полностью, три слова русскими буквами.",
+        "already_registered": "⛔ Студент {full_name} из группы {group_name} уже зарегистрирован. Если это вы и вы сменили телефон или аккаунт, обратитесь в администрацию."
+      }
+    },
+    "AUTH_STUDENT_CONFIRM": {
+      "step": 3,
+      "message": "Проверьте данные:\n\n🏫 Группа: {group_name}\n👤 ФИО: {full_name}\n\nВсё верно? Изменить данные потом можно только через администрацию.",
+      "input_type": "inline_keyboard",
+      "keyboard": [
+        [
+          {
+            "text": "✅ Да, всё верно",
+            "callback_data": "AUTH_CONFIRM_YES"
+          }
+        ],
+        [
+          {
+            "text": "✏️ Ввести ФИО заново",
+            "callback_data": "AUTH_STUDENT_FIO"
+          }
+        ],
+        [
+          {
+            "text": "🔙 Выбрать другую группу",
+            "callback_data": "AUTH_STUDENT_GROUP"
+          }
+        ]
+      ],
+      "on_success": "PROFILE_SAVED"
+    },
+    "PROFILE_SAVED": {
+      "step": 4,
+      "message": "🎉 Отлично! Ваш профиль сохранен.\n\n👤 Студент: {full_name}\n🏫 Группа: {group_name}\n\n🔑 <b>Ваш уникальный код доступа: {invite_code}</b>\n\n⚠️ <i>Сохраните этот код! Передайте его вашему преподавателю, наставнику с предприятия и администрации. Позже код можно посмотреть в главном меню.</i>",
+      "input_type": "none",
+      "on_success": "STUDENT_MENU"
+    },
+    "STUDENT_MENU": {
+      "step": 5,
+      "message": "Привет, {formatted_name}! Группа: {group_name}.\nТвой прогресс: {progress_passed} из {progress_total} практик.\n\nВыбери практику:",
+      "input_type": "inline_keyboard",
+      "keyboard": [
+        [
+          {
+            "text": "{lock_icon_pm01} ПМ.01 (Учебная) — {status_pm_01}",
+            "callback_data": "PRACTICE_OPEN:PM_01"
+          }
+        ],
+        [
+          {
+            "text": "{lock_icon_pm02} ПМ.02 (Учебная) — {status_pm_02}",
+            "callback_data": "PRACTICE_OPEN:PM_02"
+          }
+        ],
+        [
+          {
+            "text": "{lock_icon_pm03} ПМ.03 (Производственная) — {status_pm_03}",
+            "callback_data": "PRACTICE_OPEN:PM_03"
+          }
+        ],
+        [
+          {
+            "text": "{lock_icon_pm04} ПМ.04 (Учебная) — {status_pm_04}",
+            "callback_data": "PRACTICE_OPEN:PM_04"
+          }
+        ],
+        [
+          {
+            "text": "{lock_icon_pm05} ПМ.05 (Учебная) — {status_pm_05}",
+            "callback_data": "PRACTICE_OPEN:PM_05"
+          }
+        ],
+        [
+          {
+            "text": "{lock_icon_pm06} ПМ.06 (Производственная) — {status_pm_06}",
+            "callback_data": "PRACTICE_OPEN:PM_06"
+          }
+        ],
+        [
+          {
+            "text": "{lock_icon_pm07} ПМ.07 (Производственная) — {status_pm_07}",
+            "callback_data": "PRACTICE_OPEN:PM_07"
+          }
+        ],
+        [
+          {
+            "text": "{lock_icon_pm08} ПМ.08 (Производственная) — {status_pm_08}",
+            "callback_data": "PRACTICE_OPEN:PM_08"
+          }
+        ],
+        [
+          {
+            "text": "🔑 Мой код доступа",
+            "callback_data": "SHOW_INVITE_CODE"
+          }
+        ]
+      ]
+    },
+    "SHOW_INVITE_CODE": {
+      "step": 6,
+      "message": "🔑 Ваш код доступа: <b>{invite_code}</b>\n\nПередайте его преподавателю, наставнику и администрации.",
+      "input_type": "inline_keyboard",
+      "keyboard": [
+        [
+          {
+            "text": "🔙 Назад в меню",
+            "callback_data": "STUDENT_MENU"
+          }
+        ]
+      ]
+    },
+    "PRACTICE_OPEN": {
+      "step": 7,
+      "message": "(служебное состояние, студенту не показывается)",
+      "input_type": "system",
+      "logic": "1) Достать practice_code из callback_data. 2) Проверить is_open(student_id, practice_code): ПМ.01 открыта всегда, остальные только если по предыдущей практике teacher_grade не пустой. 3) Если закрыта, перейти в PRACTICE_LOCKED. 4) Если открыта и тип практики report, перейти в REPORT_MENU. 5) Если открыта и тип практики diary, перейти в DIARY_PRACTICE_MENU. Эту проверку делаем КАЖДЫЙ раз, потому что у студента могут остаться старые кнопки в чате."
+    },
+    "PRACTICE_LOCKED": {
+      "step": 8,
+      "message": "🔒 {practice_name} пока закрыта.\n\nОна откроется после того, как преподаватель поставит оценку по практике {previous_practice_name}.",
+      "input_type": "inline_keyboard",
+      "keyboard": [
+        [
+          {
+            "text": "🔙 Назад в меню",
+            "callback_data": "STUDENT_MENU"
+          }
+        ]
+      ]
+    },
+    "REPORT_MENU": {
+      "step": 9,
+      "message": "Отчёт по <b>{practice_name}</b>\n\nСтатус: {practice_status}\nОценка: {grade_or_dash}\nКомментарий преподавателя: {teacher_comment_or_dash}\nПометка наставника: {employer_note_or_dash}\nПодтверждение наставника: {employer_approved_text}\n\nВыбери раздел для заполнения:",
+      "input_type": "inline_keyboard",
+      "keyboard": [
+        [
+          {
+            "text": "{check_s1} 1. {section_1_title}",
+            "callback_data": "REPORT_SECTION:{practice_code}:1"
+          }
+        ],
+        [
+          {
+            "text": "{check_s2} 2. {section_2_title}",
+            "callback_data": "REPORT_SECTION:{practice_code}:2"
+          }
+        ],
+        [
+          {
+            "text": "{check_s3} 3. {section_3_title}",
+            "callback_data": "REPORT_SECTION:{practice_code}:3"
+          }
+        ],
+        [
+          {
+            "text": "{check_s4} 4. {section_4_title}",
+            "callback_data": "REPORT_SECTION:{practice_code}:4"
+          }
+        ],
+        [
+          {
+            "text": "📤 Отправить на проверку",
+            "callback_data": "SUBMIT_REPORT:{practice_code}",
+            "show_only_if": "все 4 раздела заполнены И status == draft"
+          }
+        ],
+        [
+          {
+            "text": "🔙 Назад в меню",
+            "callback_data": "STUDENT_MENU"
+          }
+        ]
+      ]
+    },
+    "REPORT_SECTION": {
+      "step": 10,
+      "message": "Вы открыли <b>Раздел {section_number}. {section_title}</b>.\n\n💡 <i>Подсказка:</i>\n{section_hint}",
+      "input_type": "inline_keyboard",
+      "keyboard": [
+        [
+          {
+            "text": "📎 Прикрепить файл / ✍️ Написать",
+            "callback_data": "REPORT_INPUT:{practice_code}:{section_number}",
+            "show_only_if": "status == draft"
+          }
+        ],
+        [
+          {
+            "text": "🔙 Назад к списку",
+            "callback_data": "REPORT_MENU:{practice_code}"
+          }
+        ]
+      ],
+      "backend_note": "Если status равен submitted или graded, редактировать нельзя. Показываем текущий текст раздела и только кнопку «Назад»."
+    },
+    "REPORT_SECTION_INPUT": {
+      "step": 11,
+      "message": "Отправьте {allowed_input_text} одним сообщением.",
+      "input_type": "text_or_document",
+      "on_success": "REPORT_MENU",
+      "on_error": "❌ Этот раздел принимает только {allowed_input_text}. Попробуйте ещё раз.",
+      "backend_note": "Если пришёл документ, сохраняем file_id в section_N_file_id. Если пришёл текст, сохраняем в section_N_text. Раздел 3 принимает только текст. После сохранения пишем «✅ Раздел сохранён» и показываем REPORT_MENU с обновлёнными галочками."
+    },
+    "SUBMIT_REPORT": {
+      "step": 12,
+      "message": "📤 Отчёт по {practice_name} отправлен на проверку. Пока преподаватель не поставит оценку, редактировать его нельзя.",
+      "input_type": "inline_keyboard",
+      "keyboard": [
+        [
+          {
+            "text": "🔙 Назад в меню",
+            "callback_data": "STUDENT_MENU"
+          }
+        ]
+      ],
+      "backend_note": "Проверить, что все 4 раздела заполнены. После этого status = submitted, submitted_at = now()."
+    },
+    "DIARY_PRACTICE_MENU": {
+      "step": 13,
+      "message": "📖 <b>Дневник практики — {practice_name}</b>\n\nСтатус: {practice_status}\nОценка: {grade_or_dash}\nКомментарий преподавателя: {teacher_comment_or_dash}\nПометка наставника: {employer_note_or_dash}\nПодтверждение наставника: {employer_approved_text}\n\nЗдесь вы ведёте ежедневные записи о том, что делали на практике.",
+      "input_type": "inline_keyboard",
+      "keyboard": [
+        [
+          {
+            "text": "➕ Добавить запись",
+            "callback_data": "DIARY_ADD_DATE:{practice_code}",
+            "show_only_if": "status == draft"
+          }
+        ],
+        [
+          {
+            "text": "👀 Посмотреть мои записи",
+            "callback_data": "DIARY_VIEW_ENTRIES:{practice_code}:1"
+          }
+        ],
+        [
+          {
+            "text": "📤 Отправить на проверку",
+            "callback_data": "SUBMIT_DIARY:{practice_code}",
+            "show_only_if": "в дневнике минимум 1 запись И status == draft"
+          }
+        ],
+        [
+          {
+            "text": "🔙 Назад в меню",
+            "callback_data": "STUDENT_MENU"
+          }
+        ]
+      ],
+      "backend_note": "Дневник доступен ТОЛЬКО для практик типа diary (ПМ.03, ПМ.06, ПМ.07, ПМ.08) и только если практика открыта."
+    },
+    "DIARY_ADD_DATE": {
+      "step": 14,
+      "message": "Введите дату записи в формате ДД.ММ.ГГГГ (например: 25.10.2026):",
+      "input_type": "text",
+      "validation": "Дата должна быть настоящей и не из будущего.",
+      "on_success": "DIARY_ADD_COMMENT",
+      "on_error": "❌ Не удалось распознать дату. Пример: 25.10.2026. Дата не может быть из будущего."
+    },
+    "DIARY_ADD_COMMENT": {
+      "step": 15,
+      "message": "Теперь введите комментарий: что вы делали в этот день?",
+      "input_type": "text",
+      "validation": "От 5 до 1000 символов.",
+      "on_success": "SAVE_DIARY_ENTRY",
+      "on_error": "❌ Комментарий должен быть текстом длиной от 5 до 1000 символов."
+    },
+    "SAVE_DIARY_ENTRY": {
+      "step": 16,
+      "message": "✅ Запись за {entry_date} сохранена!",
+      "input_type": "system",
+      "on_success": "DIARY_PRACTICE_MENU",
+      "backend_note": "Сохранить (student_id, practice_code, entry_date, comment) в practice_diary. Если запись на эту дату уже есть, обновить её текст."
+    },
+    "DIARY_VIEW_ENTRIES": {
+      "step": 17,
+      "message": "📅 <b>Ваши записи — {practice_name}</b> (страница {page} из {pages}):\n\n{diary_entries_placeholder}",
+      "input_type": "inline_keyboard",
+      "keyboard": [
+        [
+          {
+            "text": "⬅️",
+            "callback_data": "DIARY_VIEW_ENTRIES:{practice_code}:{prev_page}"
+          },
+          {
+            "text": "➡️",
+            "callback_data": "DIARY_VIEW_ENTRIES:{practice_code}:{next_page}"
+          }
+        ],
+        [
+          {
+            "text": "🔙 Назад в дневник",
+            "callback_data": "DIARY_PRACTICE_MENU:{practice_code}"
+          }
+        ]
+      ],
+      "backend_note": "Выводим по 10 записей на страницу, потому что у сообщения есть лимит длины. Если записей нет, пишем «Пока записей нет»."
+    },
+    "SUBMIT_DIARY": {
+      "step": 18,
+      "message": "📤 Дневник по {practice_name} отправлен на проверку. Пока преподаватель не поставит оценку, добавлять записи нельзя.",
+      "input_type": "inline_keyboard",
+      "keyboard": [
+        [
+          {
+            "text": "🔙 Назад в меню",
+            "callback_data": "STUDENT_MENU"
+          }
+        ]
+      ],
+      "backend_note": "Проверить, что есть хотя бы 1 запись. После этого status = submitted, submitted_at = now()."
+    }
+  },
+  "employer_flow": {
+    "EMPLOYER_AUTH_FIO": {
+      "step": 1,
+      "message": "🏭 Вы выбрали роль работодателя (наставника).\n\nВведите ФИО полностью:",
+      "input_type": "text",
+      "on_success": "EMPLOYER_AUTH_POSITION",
+      "on_error": "❌ Введите ФИО текстом (три слова)."
+    },
+    "EMPLOYER_AUTH_POSITION": {
+      "step": 2,
+      "message": "Отлично! Теперь введите вашу должность (например: Ведущий инженер):",
+      "input_type": "text",
+      "on_success": "EMPLOYER_MENU",
+      "on_error": "❌ Введите должность текстом."
+    },
+    "EMPLOYER_MENU": {
+      "step": 3,
+      "message": "🏭 <b>Главное меню наставника</b>\n\nЧто вы хотите сделать?",
+      "input_type": "inline_keyboard",
+      "keyboard": [
+        [
+          {
+            "text": "➕ Добавить студента по коду",
+            "callback_data": "EMPLOYER_ADD_STUDENT"
+          }
+        ],
+        [
+          {
+            "text": "👨‍🎓 Мои студенты",
+            "callback_data": "EMPLOYER_STUDENT_LIST"
+          }
+        ]
+      ]
+    },
+    "EMPLOYER_ADD_STUDENT": {
+      "step": 4,
+      "message": "Введите уникальный код доступа, который вам дал студент:",
+      "input_type": "text",
+      "on_success": "EMPLOYER_MENU",
+      "on_error": "❌ Студент с таким кодом не найден. Проверьте код и попробуйте ещё раз.",
+      "backend_note": "Найти студента по invite_code. Добавить запись в links (staff_type = employer). Если связь уже есть, ответить «Этот студент уже в вашем списке». После успеха написать «✅ Студент {student_fio} ({group_name}) добавлен»."
+    },
+    "EMPLOYER_STUDENT_LIST": {
+      "step": 5,
+      "message": "👨‍🎓 Выберите студента из списка:",
+      "input_type": "inline_keyboard",
+      "keyboard_dynamic": {
+        "source": "links, где staff_type = employer и staff_id = текущий работодатель",
+        "item_template": {
+          "text": "{student_fio} ({group_name})",
+          "callback_data": "EMPLOYER_STUDENT_CARD:{student_id}"
+        }
+      },
+      "keyboard": [
+        [
+          {
+            "text": "🔙 Назад в меню",
+            "callback_data": "EMPLOYER_MENU"
+          }
+        ]
+      ]
+    },
+    "EMPLOYER_STUDENT_CARD": {
+      "step": 6,
+      "message": "👤 <b>{student_fio}</b> ({group_name})\n\nВыберите практику для просмотра:",
+      "input_type": "inline_keyboard",
+      "keyboard_dynamic": {
+        "source": "практики студента, где есть заполненные данные или status != draft",
+        "item_template": {
+          "text": "{practice_name} — {practice_status}",
+          "callback_data": "EMPLOYER_VIEW_PRACTICE:{student_id}:{practice_code}"
+        }
+      },
+      "keyboard": [
+        [
+          {
+            "text": "🔙 Назад к списку",
+            "callback_data": "EMPLOYER_STUDENT_LIST"
+          }
+        ]
+      ],
+      "backend_note": "Перед показом проверяем по links, что студент привязан именно к этому работодателю. Иначе отвечаем «Нет доступа»."
+    },
+    "EMPLOYER_VIEW_PRACTICE": {
+      "step": 7,
+      "message": "📄 <b>{practice_name} — {student_fio}</b>\n\n{practice_content}\n\nВаше утверждение: {employer_approved_text}\nВаша пометка: {employer_note_or_dash}",
+      "input_type": "inline_keyboard",
+      "keyboard": [
+        [
+          {
+            "text": "✅ Утвердить запись",
+            "callback_data": "EMPLOYER_APPROVE_RECORD:{student_id}:{practice_code}"
+          }
+        ],
+        [
+          {
+            "text": "📝 Оставить пометку",
+            "callback_data": "EMPLOYER_ADD_NOTE:{student_id}:{practice_code}"
+          }
+        ],
+        [
+          {
+            "text": "🔙 Назад к студенту",
+            "callback_data": "EMPLOYER_STUDENT_CARD:{student_id}"
+          }
+        ]
+      ],
+      "backend_note": "practice_content: для типа report выводим 4 раздела (текст или «📎 файл прикреплён»), для типа diary выводим записи дневника «Дата: Комментарий»."
+    },
+    "EMPLOYER_ADD_NOTE": {
+      "step": 8,
+      "message": "Напишите ваш комментарий/пометку к практике студента:",
+      "input_type": "text",
+      "on_success": "EMPLOYER_VIEW_PRACTICE",
+      "on_error": "❌ Введите комментарий текстом (до 1000 символов)."
+    }
+  },
+  "teacher_flow": {
+    "TEACHER_MENU": {
+      "step": 2,
+      "message": "📚 <b>Главное меню преподавателя</b>\n\nВыберите действие:",
+      "input_type": "inline_keyboard",
+      "keyboard": [
+        [
+          {
+            "text": "➕ Добавить студента по коду",
+            "callback_data": "TEACHER_ADD_STUDENT"
+          }
+        ],
+        [
+          {
+            "text": "📋 Список моих студентов",
+            "callback_data": "TEACHER_STUDENT_LIST"
+          }
+        ],
+        [
+          {
+            "text": "⚠️ Требуют проверки",
+            "callback_data": "TEACHER_NEED_CHECK"
+          }
+        ],
+        [
+          {
+            "text": "✅ Уже сдано (проверено)",
+            "callback_data": "TEACHER_ALREADY_CHECKED"
+          }
+        ]
+      ]
+    },
+    "TEACHER_ADD_STUDENT": {
+      "step": 3,
+      "message": "Введите код доступа студента:",
+      "input_type": "text",
+      "on_success": "TEACHER_MENU",
+      "on_error": "❌ Студент с таким кодом не найден. Проверьте код и попробуйте ещё раз.",
+      "backend_note": "Найти студента по invite_code. Добавить запись в links (staff_type = teacher). После успеха написать «✅ Студент {student_fio} ({group_name}) добавлен»."
+    },
+    "TEACHER_STUDENT_LIST": {
+      "step": 4,
+      "message": "📋 Выберите студента для просмотра его практики:",
+      "input_type": "inline_keyboard",
+      "keyboard_dynamic": {
+        "source": "links, где staff_type = teacher и staff_id = текущий преподаватель",
+        "item_template": {
+          "text": "{student_fio} ({group_name})",
+          "callback_data": "TEACHER_STUDENT_CARD:{student_id}"
+        }
+      },
+      "keyboard": [
+        [
+          {
+            "text": "🔙 Назад в меню",
+            "callback_data": "TEACHER_MENU"
+          }
+        ]
+      ]
+    },
+    "TEACHER_STUDENT_CARD": {
+      "step": 5,
+      "message": "👤 <b>{student_fio}</b> ({group_name})\nПрогресс: {progress_passed} из {progress_total}\n\nВыберите практику:",
+      "input_type": "inline_keyboard",
+      "keyboard_dynamic": {
+        "source": "все 8 практик студента",
+        "item_template": {
+          "text": "{practice_name} — {practice_status}",
+          "callback_data": "TEACHER_VIEW_PRACTICE:{student_id}:{practice_code}"
+        }
+      },
+      "keyboard": [
+        [
+          {
+            "text": "🔙 Назад к списку",
+            "callback_data": "TEACHER_STUDENT_LIST"
+          }
+        ]
+      ],
+      "backend_note": "Перед показом проверяем по links, что студент привязан именно к этому преподавателю."
+    },
+    "TEACHER_VIEW_PRACTICE": {
+      "step": 6,
+      "message": "📄 <b>{practice_name} — {student_fio}</b> ({group_name})\nСтатус: {practice_status}\n\n{practice_content}\n\n👷 Наставник: {employer_approved_text}\n💬 Пометка наставника: {employer_note_or_dash}\n\n🎓 Оценка: {current_grade}\n\n💬 Комментарий преподавателя: {teacher_comment_or_dash}",
+      "input_type": "inline_keyboard",
+      "keyboard": [
+        [
+          {
+            "text": "💬 Оставить комментарий",
+            "callback_data": "TEACHER_ADD_COMMENT:{student_id}:{practice_code}",
+            "show_only_if": "status == submitted или status == graded"
+          }
+        ],
+        [
+          {
+            "text": "✍️ Поставить оценку",
+            "callback_data": "TEACHER_ADD_GRADE:{student_id}:{practice_code}",
+            "show_only_if": "status == submitted или status == graded"
+          }
+        ],
+        [
+          {
+            "text": "🔙 Назад к студенту",
+            "callback_data": "TEACHER_STUDENT_CARD:{student_id}"
+          }
+        ]
+      ],
+      "backend_note": "Если студент ещё не отправил работу на проверку (status == draft), кнопки оценки нет, чтобы нельзя было оценить пустой отчёт."
+    },
+    "TEACHER_ADD_GRADE": {
+      "step": 7,
+      "message": "Введите оценку для студента (допустимо: 3, 4, 5 или Зачтено):",
+      "input_type": "text",
+      "validation": "Допустимые значения: 3, 4, 5, Зачтено (регистр не важен).",
+      "on_success": "TEACHER_VIEW_PRACTICE",
+      "on_error": "❌ Допустимые оценки: 3, 4, 5 или Зачтено."
+    },
+    "TEACHER_NEED_CHECK": {
+      "step": 8,
+      "message": "⚠️ <b>Работы, которые ждут вашей проверки:</b>",
+      "input_type": "inline_keyboard",
+      "keyboard_dynamic": {
+        "source": "practice_reports своих студентов, где status = submitted (teacher_grade пустой)",
+        "item_template": {
+          "text": "{student_fio} — {practice_name}",
+          "callback_data": "TEACHER_VIEW_PRACTICE:{student_id}:{practice_code}"
+        }
+      },
+      "keyboard": [
+        [
+          {
+            "text": "🔙 Назад в меню",
+            "callback_data": "TEACHER_MENU"
+          }
+        ]
+      ],
+      "backend_note": "Если список пуст, пишем «Все работы проверены 🎉»."
+    },
+    "TEACHER_ALREADY_CHECKED": {
+      "step": 9,
+      "message": "✅ <b>Уже проверено:</b>",
+      "input_type": "inline_keyboard",
+      "keyboard_dynamic": {
+        "source": "practice_reports своих студентов, где teacher_grade не пустой",
+        "item_template": {
+          "text": "{student_fio} — {practice_name}: {current_grade}",
+          "callback_data": "TEACHER_VIEW_PRACTICE:{student_id}:{practice_code}"
+        }
+      },
+      "keyboard": [
+        [
+          {
+            "text": "🔙 Назад в меню",
+            "callback_data": "TEACHER_MENU"
+          }
+        ]
+      ]
+    },
+    "TEACHER_AUTH_FIO": {
+      "step": 1,
+      "message": "📚 Вы выбрали роль преподавателя.\n\nВведите ФИО полностью (фамилия, имя, отчество):",
+      "input_type": "text",
+      "on_success": "TEACHER_MENU",
+      "on_error": "❌ Введите ФИО: три слова русскими буквами."
+    },
+    "TEACHER_ADD_COMMENT": {
+      "step": 10,
+      "message": "Введите комментарий к работе студента (от 5 до 1000 символов):",
+      "input_type": "text",
+      "validation": "От 5 до 1000 символов.",
+      "on_success": "TEACHER_VIEW_PRACTICE",
+      "on_error": "❌ Комментарий должен содержать от 5 до 1000 символов.",
+      "backend_note": "Сохранить комментарий в practice_reports.teacher_comment, teacher_comment_by, teacher_comment_at. Студент должен видеть его в меню соответствующей практики."
+    }
+  },
+  "admin_flow": {
+    "ADMIN_MENU": {
+      "step": 2,
+      "message": "🏢 <b>Панель администратора</b>\n\nВыберите действие:",
+      "input_type": "inline_keyboard",
+      "keyboard": [
+        [
+          {
+            "text": "📥 Экспорт в Excel",
+            "callback_data": "ADMIN_EXPORT_XLSX"
+          }
+        ],
+        [
+          {
+            "text": "👥 Управление группами",
+            "callback_data": "GROUP_MGMT"
+          }
+        ],
+        [
+          {
+            "text": "📊 Полная статистика",
+            "callback_data": "ADMIN_STATS"
+          }
+        ],
+        [
+          {
+            "text": "📨 Заявки студентов",
+            "callback_data": "STAFF_REQUESTS"
+          }
+        ]
+      ]
+    },
+    "ADMIN_STATS": {
+      "step": 4,
+      "message": "📊 <b>Полная статистика практики</b>\n\n👥 Всего студентов: {total_students}\n✅ Сдали все практики: {passed_students}\n❌ Еще не сдали: {failed_students}\n\n<i>Данные обновлены: {updated_at}.</i>",
+      "input_type": "inline_keyboard",
+      "keyboard": [
+        [
+          {
+            "text": "🔄 Обновить данные",
+            "callback_data": "ADMIN_STATS"
+          }
+        ],
+        [
+          {
+            "text": "🔙 Назад в меню",
+            "callback_data": "ADMIN_MENU"
+          }
+        ]
+      ]
+    },
+    "ADMIN_AUTH_FIO": {
+      "step": 1,
+      "message": "🏢 Вы выбрали роль администратора.\n\nВведите ФИО полностью:",
+      "input_type": "text",
+      "on_success": "ADMIN_MENU",
+      "on_error": "❌ Введите ФИО текстом (три слова)."
+    }
+  },
+  "backend_logic_requirements": {
+    "practice_catalog": [
+      {
+        "code": "PM_01",
+        "title": "ПМ.01",
+        "type": "report",
+        "kind_label": "Учебная",
+        "previous": null
+      },
+      {
+        "code": "PM_02",
+        "title": "ПМ.02",
+        "type": "report",
+        "kind_label": "Учебная",
+        "previous": "PM_01"
+      },
+      {
+        "code": "PM_03",
+        "title": "ПМ.03",
+        "type": "diary",
+        "kind_label": "Производственная",
+        "previous": "PM_02"
+      },
+      {
+        "code": "PM_04",
+        "title": "ПМ.04",
+        "type": "report",
+        "kind_label": "Учебная",
+        "previous": "PM_03"
+      },
+      {
+        "code": "PM_05",
+        "title": "ПМ.05",
+        "type": "report",
+        "kind_label": "Учебная",
+        "previous": "PM_04"
+      },
+      {
+        "code": "PM_06",
+        "title": "ПМ.06",
+        "type": "diary",
+        "kind_label": "Производственная",
+        "previous": "PM_05"
+      },
+      {
+        "code": "PM_07",
+        "title": "ПМ.07",
+        "type": "diary",
+        "kind_label": "Производственная",
+        "previous": "PM_06"
+      },
+      {
+        "code": "PM_08",
+        "title": "ПМ.08",
+        "type": "diary",
+        "kind_label": "Производственная",
+        "previous": "PM_07"
+      }
+    ],
+    "report_sections": {
+      "PM_01": [
+        {
+          "number": 1,
+          "title": "Краткое описание предприятия",
+          "hint": "1.1. Напиши полное наименование дистанции.\n1.2. Опиши структуру и место практики.\n1.3. Опиши режим работы.",
+          "allowed_input": "text_or_document",
+          "allowed_input_text": "текст или файл"
+        },
+        {
+          "number": 2,
+          "title": "Должностные инструкции",
+          "hint": "2.1. Опиши обязанности руководителя от предприятия.\n2.2. Укажи его группу по электробезопасности.\n2.3. Перечисли зоны ответственности.",
+          "allowed_input": "text_or_document",
+          "allowed_input_text": "текст или файл"
+        },
+        {
+          "number": 3,
+          "title": "Охрана труда",
+          "hint": "Напиши комментарий, как ты на практике использовал охрану труда.",
+          "allowed_input": "text",
+          "allowed_input_text": "текст"
+        },
+        {
+          "number": 4,
+          "title": "Итоги и выводы",
+          "hint": "Кратко опишите, чему вы научились во время практики, какие задачи выполнили и какие профессиональные навыки приобрели.",
+          "allowed_input": "text_or_document",
+          "allowed_input_text": "текст или файл"
+        }
+      ],
+      "PM_02": "use_same_as:PM_01 (пока нет своих названий разделов)",
+      "PM_04": "use_same_as:PM_01 (пока нет своих названий разделов)",
+      "PM_05": "use_same_as:PM_01 (пока нет своих названий разделов)"
+    },
+    "security_rules": [
+      "В текущем режиме тестирования преподаватель, работодатель и администратор регистрируются без секретного кода. Перед рабочей эксплуатацией обязательно включить проверку кодов доступа.",
+      "Роль человека всегда определяется по max_user_id из базы, а не по тексту сообщения или callback_data.",
+      "Один max_user_id = одна роль. Нельзя быть студентом и преподавателем одновременно.",
+      "Преподаватель и работодатель видят только студентов, привязанных через links.",
+      "Доступ к практике проверяется на сервере при КАЖДОМ нажатии кнопки: у пользователя могут остаться старые сообщения с кнопками.",
+      "Нельзя редактировать работу, если её status равен submitted или graded."
+    ],
+    "variables_explanation": {
+      "formatted_name": "Бэкенд берет {full_name} и сокращает до 'Иванов И.И.'",
+      "group_name": "Группа студента из таблицы students",
+      "progress_passed": "Бэкенд считает количество практик студента, где teacher_grade не пустой (IS NOT NULL)",
+      "progress_total": "Всего практик (сейчас 8)",
+      "status_pm_XX": "Закрыто: предыдущая практика не оценена. Доступно: практика открыта и status = draft. На проверке: status = submitted. Сдан: teacher_grade не пустой.",
+      "lock_icon_pmXX": "🔒 если закрыто, 📝 если доступно, ⏳ если на проверке, ✅ если сдано",
+      "check_s1 / s2 / s3 / s4": "✅ если раздел заполнен в БД (текст или файл), иначе 🔴",
+      "practice_status": "draft = Заполняется, submitted = На проверке, graded = Оценено",
+      "diary_entries_placeholder": "Бэкенд формирует список из таблицы practice_diary по student_id и practice_code: 'Дата: Комментарий'",
+      "total_students / passed_students / failed_students": "total = COUNT всех студентов. passed = студенты, у которых оценены все 8 практик. failed = total минус passed.",
+      "status_label": "В интерфейсе показывать по-русски: draft — «Заполняется», submitted — «На проверке», graded — «Оценено». Английские значения остаются только внутренними значениями базы."
+    },
+    "database_schema": {
+      "groups": [
+        "id",
+        "name (например ЭЛС-21)"
+      ],
+      "students": [
+        "id",
+        "max_user_id",
+        "group_name",
+        "fio",
+        "invite_code",
+        "created_at"
+      ],
+      "employers": [
+        "id",
+        "max_user_id",
+        "fio",
+        "position",
+        "created_at"
+      ],
+      "teachers": [
+        "id",
+        "max_user_id",
+        "fio",
+        "created_at"
+      ],
+      "admins": [
+        "id",
+        "max_user_id",
+        "fio",
+        "created_at"
+      ],
+      "access_codes": [
+        "id",
+        "code (например TEACH-OLGA)",
+        "role (teacher / employer / admin)",
+        "owner_fio (для teacher и admin, для employer пусто)",
+        "is_active",
+        "created_at"
+      ],
+      "links": [
+        "id",
+        "student_id (students.id)",
+        "student_code (внутреннее совместимое поле main.py)",
+        "staff_type (teacher / employer / admin)",
+        "staff_id",
+        "created_at"
+      ],
+      "practice_reports": [
+        "id",
+        "student_id",
+        "practice_code (например PM_01)",
+        "section_1_text",
+        "section_1_file_id",
+        "section_2_text",
+        "section_2_file_id",
+        "section_3_text",
+        "section_4_text",
+        "section_4_file_id",
+        "status (draft / submitted / graded)",
+        "submitted_at",
+        "teacher_grade",
+        "graded_by_teacher_id",
+        "graded_at",
+        "teacher_comment",
+        "employer_approved",
+        "employer_note",
+        "updated_at",
+        "teacher_comment_by",
+        "teacher_comment_at"
+      ],
+      "practice_diary": [
+        "id",
+        "student_id",
+        "practice_code",
+        "entry_date",
+        "comment",
+        "created_at"
+      ],
+      "auth_attempts": [
+        "max_user_id",
+        "failed_count",
+        "blocked_until"
+      ]
+    },
+    "database_constraints": [
+      "students: UNIQUE(max_user_id), UNIQUE(invite_code), UNIQUE(group_name, fio)",
+      "teachers / employers / admins: UNIQUE(max_user_id)",
+      "access_codes: UNIQUE(code)",
+      "links: UNIQUE(student_id, staff_type, staff_id)",
+      "practice_reports: UNIQUE(student_id, practice_code)",
+      "practice_diary: UNIQUE(student_id, practice_code, entry_date)",
+      "teacher_grade может быть только NULL, '3', '4', '5' или 'Зачтено'"
+    ],
+    "actions": {
+      "PRACTICE_OPEN": "Проверяет is_open(student_id, practice_code). Практика открыта, если это ПМ.01 ИЛИ у предыдущей практики teacher_grade не пустой. Дальше ведёт в REPORT_MENU, DIARY_PRACTICE_MENU или PRACTICE_LOCKED. Логика '14 дней' УДАЛЕНА полностью.",
+      "AUTH_CONFIRM_YES": "Создаёт запись в students (max_user_id, group_name, fio, invite_code). invite_code генерируем модулем secrets, например 'ST-' + 6 случайных символов. Проверяем уникальность. Если нарушено UNIQUE(group_name, fio), показываем ошибку already_registered.",
+      "REPORT_INPUT / REPORT_SECTION_INPUT": "Бот ожидает текст или документ (по allowed_input раздела). Документ: сохраняем file_id в section_N_file_id. Текст: сохраняем в section_N_text. После сохранения обновляем меню (ставим ✅) и возвращаем в REPORT_MENU. Если status не draft, отказываем.",
+      "SUBMIT_REPORT": "Проверяет, что все 4 раздела заполнены. Затем status = submitted, submitted_at = now(). Преподавателям, привязанным к студенту, отправляется уведомление.",
+      "SAVE_DIARY_ENTRY": "Сохраняет (student_id, practice_code, entry_date, comment) в practice_diary (при повторе даты обновляет текст) и возвращает в DIARY_PRACTICE_MENU.",
+      "SUBMIT_DIARY": "Проверяет, что есть хотя бы 1 запись. Затем status = submitted, submitted_at = now() в practice_reports (строку создаём, если её ещё нет).",
+      "DIARY_VIEW_ENTRIES": "SELECT из practice_diary по student_id и practice_code, сортировка по entry_date, по 10 записей на страницу. Форматируем 'Дата: Комментарий'.",
+      "EMPLOYER_APPROVE_RECORD": "Проверяет, что студент привязан к этому работодателю (links). Затем ставит employer_approved = TRUE в practice_reports для (student_id, practice_code).",
+      "EMPLOYER_ADD_NOTE": "Проверяет привязку по links. Записывает employer_note. Студент видит пометку в меню практики.",
+      "TEACHER_ADD_GRADE": "Проверяет привязку по links и допустимые значения. Записывает teacher_grade, status = graded, graded_at = now(), graded_by_teacher_id. Студенту отправляется уведомление, и следующая практика автоматически открывается (специально ничего делать не нужно: is_open сработает сам).",
+      "ADMIN_STATS": "COUNT-запросы: total = все студенты; passed = студенты, у которых 8 практик с teacher_grade не NULL; failed = total - passed.",
+      "TEACHER_ADD_COMMENT": "Проверяет привязку по links и статус работы (submitted или graded). Сохраняет teacher_comment, teacher_comment_by, teacher_comment_at. Уведомляет студента; комментарий виден в меню соответствующей практики."
+    },
+    "notifications": {
+      "to_student_on_grade": "🎓 Преподаватель поставил оценку по {practice_name}: {grade}.{next_practice_text}",
+      "to_student_on_employer_note": "💬 Наставник оставил пометку по {practice_name}: {note}",
+      "to_student_on_employer_approve": "✅ Наставник утвердил вашу запись по {practice_name}.",
+      "to_teacher_on_submit": "⚠️ {student_fio} отправил(а) на проверку: {practice_name}.",
+      "to_student_on_teacher_comment": "💬 Преподаватель оставил комментарий по {practice_name}. Откройте практику, чтобы прочитать его."
+    },
+    "ai_integration": {
+      "enabled_for": "practice_diary",
+      "practices": [
+        "PM_03",
+        "PM_06",
+        "PM_07",
+        "PM_08"
+      ],
+      "disabled_for": "practice_reports",
+      "note": "YandexGPT преобразует черновое описание ежедневной работы в официальный стиль. Студент проверяет результат и подтверждает сохранение. В разделах отчётов PM_01, PM_02, PM_04 и PM_05 ИИ не применяется."
+    }
+  },
+  "groups": [
+    "ЭЛС-21",
+    "ЭЛС-22"
+  ]
+}

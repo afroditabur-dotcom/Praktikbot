@@ -1,0 +1,13 @@
+services:
+  praktikbot:
+    build: .
+    image: praktikbot:latest
+    container_name: praktikbot
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATA_FILE: /app/data/bot_data.json
+      FLOW_FILE: /app/report_structure.json
+    volumes:
+      - ./data:/app/data
